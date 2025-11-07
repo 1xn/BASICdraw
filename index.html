@@ -158,6 +158,25 @@
       </div>
     </div>
     
+    <div class="controls" style="margin-top:10px;">
+      <div class="control-group">
+        <label>Image Overlay:</label>
+        <input type="file" id="overlayFile" accept="image/*" style="display:none;">
+        <button id="loadOverlay" style="margin:0;padding:6px 12px;font-size:12px;">📷 Load Image</button>
+      </div>
+      
+      <div class="control-group" id="overlayControls" style="display:none;">
+        <label>Opacity:</label>
+        <input type="range" id="overlayOpacity" min="0" max="100" value="50" style="width:100px;vertical-align:middle;">
+        <span id="opacityValue" style="margin-left:5px;color:#888;font-size:11px;">50%</span>
+      </div>
+      
+      <div class="control-group" id="removeOverlayGroup" style="display:none;">
+        <label>&nbsp;</label>
+        <button id="removeOverlay" style="margin:0;padding:6px 12px;font-size:12px;">✕ Remove</button>
+      </div>
+    </div>
+    
     <canvas id="map"></canvas>
     
     <div class="button-group">
@@ -278,6 +297,8 @@
       let last = null;
       let lines = []; // Each line: [x1, y1, x2, y2, color]
       let currentRes = {w: 640, h: 480}; // Default matches GW-BASIC VGA resolution
+      let overlayImage = null;
+      let overlayOpacity = 0.5; // 0-1 range
       
       function getCurrentColor() {
         return parseInt(colorSelect.value) || 15;
@@ -297,7 +318,11 @@
         currentRes = parseResolution(res);
         canvas.width = currentRes.w;
         canvas.height = currentRes.h;
-        reset();
+        // Redraw with overlay if present
+        redrawCanvas();
+        lines = [];
+        last = null;
+        output.value = "";
       }
       
       function grid() {
@@ -326,7 +351,8 @@
       
       function reset() {
         ctx.clearRect(0, 0, currentRes.w, currentRes.h);
-        grid();
+        // Note: Don't clear overlay image on reset, just redraw
+        redrawCanvas();
         lines = [];
         last = null;
         output.value = "";
@@ -340,6 +366,24 @@
       
       function redrawCanvas() {
         ctx.clearRect(0, 0, currentRes.w, currentRes.h);
+        
+        // Draw overlay image if present (before grid)
+        if (overlayImage) {
+          ctx.save();
+          ctx.globalAlpha = overlayOpacity;
+          
+          // Calculate scaled dimensions to fit canvas width while maintaining aspect ratio
+          const scale = currentRes.w / overlayImage.width;
+          const scaledWidth = currentRes.w;
+          const scaledHeight = overlayImage.height * scale;
+          
+          // Center vertically
+          const yOffset = (currentRes.h - scaledHeight) / 2;
+          
+          ctx.drawImage(overlayImage, 0, yOffset, scaledWidth, scaledHeight);
+          ctx.restore();
+        }
+        
         grid();
         
         // Redraw all lines with their stored colors
@@ -526,6 +570,51 @@
       
       resSelect.addEventListener("change", setResolution);
       dialectSelect.addEventListener("change", updateResolutionOptions);
+      
+      // Overlay image functionality
+      const overlayFileInput = document.getElementById("overlayFile");
+      const loadOverlayBtn = document.getElementById("loadOverlay");
+      const removeOverlayBtn = document.getElementById("removeOverlay");
+      const overlayOpacitySlider = document.getElementById("overlayOpacity");
+      const opacityValueSpan = document.getElementById("opacityValue");
+      const overlayControls = document.getElementById("overlayControls");
+      const removeOverlayGroup = document.getElementById("removeOverlayGroup");
+      
+      loadOverlayBtn.addEventListener("click", () => {
+        overlayFileInput.click();
+      });
+      
+      overlayFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              overlayImage = img;
+              overlayControls.style.display = "inline-block";
+              removeOverlayGroup.style.display = "inline-block";
+              redrawCanvas();
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      
+      overlayOpacitySlider.addEventListener("input", (e) => {
+        overlayOpacity = e.target.value / 100;
+        opacityValueSpan.textContent = e.target.value + "%";
+        redrawCanvas();
+      });
+      
+      removeOverlayBtn.addEventListener("click", () => {
+        overlayImage = null;
+        overlayFileInput.value = "";
+        overlayControls.style.display = "none";
+        removeOverlayGroup.style.display = "none";
+        redrawCanvas();
+      });
     </script>
   </body>
 </html>
