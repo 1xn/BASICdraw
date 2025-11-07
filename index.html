@@ -101,7 +101,7 @@
     
     <div class="info" style="margin-bottom:15px;color:#888;max-width:700px;margin-left:auto;margin-right:auto;">
       Back in the day, programmers plotted graphics on graph paper before typing coordinates into BASIC. 
-      This tool lets you draw directly and export authentic LINE commands for vintage BASIC dialects!
+      This tool lets you draw directly and export authentic LINE commands for vintage BASIC dialects! No more graph paper!
     </div>
     
     <div class="controls">
@@ -114,6 +114,7 @@
           <option value="sharp">Sharp MZ-700/800 BASIC</option>
           <option value="msx">MSX BASIC</option>
           <option value="c128">Commodore 128 BASIC 7.0</option>
+          <option value="apple2">Apple II HPLOT</option>
         </select>
       </div>
       
@@ -121,10 +122,33 @@
         <label>Resolution:</label>
         <select id="resolution">
           <option value="256x192">256×192 (MSX)</option>
+          <option value="280x192">280×192 (Apple II HGR2)</option>
           <option value="320x200">320×200 (CGA/C64/Atari)</option>
           <option value="640x350">640×350 (EGA)</option>
           <option value="640x400">640×400 (Atari ST)</option>
           <option value="640x480" selected>640×480 (VGA)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Color:</label>
+        <select id="color">
+          <option value="0">0 - Black</option>
+          <option value="1">1 - Blue</option>
+          <option value="2">2 - Green</option>
+          <option value="3">3 - Cyan</option>
+          <option value="4">4 - Red</option>
+          <option value="5">5 - Magenta</option>
+          <option value="6">6 - Brown</option>
+          <option value="7">7 - Light Gray</option>
+          <option value="8">8 - Dark Gray</option>
+          <option value="9">9 - Light Blue</option>
+          <option value="10">10 - Light Green</option>
+          <option value="11">11 - Light Cyan</option>
+          <option value="12">12 - Light Red</option>
+          <option value="13">13 - Light Magenta</option>
+          <option value="14">14 - Yellow</option>
+          <option value="15" selected>15 - White</option>
         </select>
       </div>
       
@@ -138,6 +162,7 @@
     
     <div class="button-group">
       <button id="newseg">⊙ New Segment</button>
+      <button id="undo">↶ Undo</button>
       <button id="export">⇓ Export BASIC Code</button>
       <button id="clear">✕ Clear Canvas</button>
     </div>
@@ -162,44 +187,105 @@
       const output = document.getElementById("output");
       const resSelect = document.getElementById("resolution");
       const dialectSelect = document.getElementById("dialect");
+      const colorSelect = document.getElementById("color");
+      
+      // EGA/VGA 16-color palette
+      const egaColors = {
+        0: { name: "Black", rgb: [0, 0, 0], hex: "#000000" },
+        1: { name: "Blue", rgb: [0, 0, 170], hex: "#0000AA" },
+        2: { name: "Green", rgb: [0, 170, 0], hex: "#00AA00" },
+        3: { name: "Cyan", rgb: [0, 170, 170], hex: "#00AAAA" },
+        4: { name: "Red", rgb: [170, 0, 0], hex: "#AA0000" },
+        5: { name: "Magenta", rgb: [170, 0, 170], hex: "#AA00AA" },
+        6: { name: "Brown", rgb: [170, 85, 0], hex: "#AA5500" },
+        7: { name: "Light Gray", rgb: [170, 170, 170], hex: "#AAAAAA" },
+        8: { name: "Dark Gray", rgb: [85, 85, 85], hex: "#555555" },
+        9: { name: "Light Blue", rgb: [85, 85, 255], hex: "#5555FF" },
+        10: { name: "Light Green", rgb: [85, 255, 85], hex: "#55FF55" },
+        11: { name: "Light Cyan", rgb: [85, 255, 255], hex: "#55FFFF" },
+        12: { name: "Light Red", rgb: [255, 85, 85], hex: "#FF5555" },
+        13: { name: "Light Magenta", rgb: [255, 85, 255], hex: "#FF55FF" },
+        14: { name: "Yellow", rgb: [255, 255, 85], hex: "#FFFF55" },
+        15: { name: "White", rgb: [255, 255, 255], hex: "#FFFFFF" }
+      };
       
       // Dialect configurations
       const dialects = {
         generic: {
           name: "Generic BASIC",
-          format: (x1, y1, x2, y2) => `LINE ${x1},${y1} TO ${x2},${y2}`,
+          format: (x1, y1, x2, y2, color) => `LINE ${x1},${y1} TO ${x2},${y2},${color}`,
           resolutions: ["256x192", "320x200", "640x350", "640x400", "640x480"]
         },
         atari: {
           name: "Atari ST BASIC",
-          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          format: (x1, y1, x2, y2, color) => `LINE (${x1},${y1})-(${x2},${y2}),${color}`,
           resolutions: ["320x200", "640x400"]
         },
         gwbasic: {
           name: "GW-BASIC / QBasic / QuickBASIC",
-          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          format: (x1, y1, x2, y2, color) => `LINE (${x1},${y1})-(${x2},${y2}),${color}`,
           resolutions: ["320x200", "640x350", "640x480"]
         },
         sharp: {
           name: "Sharp MZ-700/800 BASIC",
-          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          format: (x1, y1, x2, y2, color) => `LINE (${x1},${y1})-(${x2},${y2}),${color}`,
           resolutions: ["320x200"]
         },
         msx: {
           name: "MSX BASIC",
-          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          format: (x1, y1, x2, y2, color) => `LINE (${x1},${y1})-(${x2},${y2}),${color}`,
           resolutions: ["256x192"]
         },
         c128: {
           name: "Commodore 128 BASIC 7.0",
-          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          format: (x1, y1, x2, y2, color) => `LINE (${x1},${y1})-(${x2},${y2}),${color}`,
           resolutions: ["320x200"]
+        },
+        apple2: {
+          name: "Apple II HPLOT",
+          format: (x1, y1, x2, y2, color) => {
+            // Apple II uses HCOLOR= separately, not as parameter
+            const appleColor = mapEgaToApple2Color(color);
+            return `HCOLOR=${appleColor}\nHPLOT ${x1},${y1} TO ${x2},${y2}`;
+          },
+          resolutions: ["280x192"]
         }
       };
       
+      // Map EGA/VGA colors (0-15) to Apple II hi-res colors (0-7)
+      function mapEgaToApple2Color(egaColor) {
+        const mapping = {
+          0: 0,   // Black -> Black
+          1: 6,   // Blue -> Blue
+          2: 1,   // Green -> Green
+          3: 6,   // Cyan -> Blue (closest)
+          4: 5,   // Red -> Orange (closest)
+          5: 2,   // Magenta -> Violet
+          6: 5,   // Brown -> Orange
+          7: 3,   // Light Gray -> White
+          8: 0,   // Dark Gray -> Black
+          9: 6,   // Light Blue -> Blue
+          10: 1,  // Light Green -> Green
+          11: 6,  // Light Cyan -> Blue
+          12: 5,  // Light Red -> Orange
+          13: 2,  // Light Magenta -> Violet
+          14: 5,  // Yellow -> Orange
+          15: 3   // White -> White
+        };
+        return mapping[egaColor] !== undefined ? mapping[egaColor] : 3; // Default to white
+      }
+      
       let last = null;
-      let lines = [];
+      let lines = []; // Each line: [x1, y1, x2, y2, color]
       let currentRes = {w: 640, h: 480};
+      
+      function getCurrentColor() {
+        return parseInt(colorSelect.value) || 15;
+      }
+      
+      function getColorHex(colorIndex) {
+        return egaColors[colorIndex]?.hex || "#FFFFFF";
+      }
       
       function parseResolution(resStr) {
         const [w, h] = resStr.split('x').map(Number);
@@ -246,10 +332,43 @@
         output.value = "";
       }
       
-      function formatLine(x1, y1, x2, y2, lineNum) {
+      function formatLine(x1, y1, x2, y2, color, lineNum) {
         const dialect = dialectSelect.value;
-        const formatted = dialects[dialect].format(x1, y1, x2, y2);
+        const formatted = dialects[dialect].format(x1, y1, x2, y2, color);
         return `${lineNum} ${formatted}`;
+      }
+      
+      function redrawCanvas() {
+        ctx.clearRect(0, 0, currentRes.w, currentRes.h);
+        grid();
+        
+        // Redraw all lines with their stored colors
+        for (const [x1, y1, x2, y2, color] of lines) {
+          const colorHex = getColorHex(color);
+          ctx.strokeStyle = colorHex;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          
+          // Redraw points
+          ctx.fillStyle = colorHex;
+          ctx.fillRect(x1 - 2, y1 - 2, 5, 5);
+          ctx.fillRect(x2 - 2, y2 - 2, 5, 5);
+        }
+        
+        // Draw the last point if it exists (for cases where a point is placed but no line drawn yet)
+        if (last) {
+          const currentColor = getCurrentColor();
+          const colorHex = getColorHex(currentColor);
+          ctx.fillStyle = colorHex;
+          ctx.fillRect(last.x - 2, last.y - 2, 5, 5);
+        }
+        
+        // Reset stroke style for grid
+        ctx.strokeStyle = "#00ff00";
+        ctx.lineWidth = 2;
       }
       
       function updateResolutionOptions() {
@@ -265,6 +384,9 @@
         }
       }
       
+      // Initialize canvas with default resolution
+      canvas.width = currentRes.w;
+      canvas.height = currentRes.h;
       grid();
       
       canvas.addEventListener("click", e => {
@@ -273,16 +395,20 @@
         const scaleY = currentRes.h / rect.height;
         const x = Math.floor((e.clientX - rect.left) * scaleX);
         const y = Math.floor((e.clientY - rect.top) * scaleY);
+        const currentColor = getCurrentColor();
+        const colorHex = getColorHex(currentColor);
         
-        ctx.fillStyle = "#00ff00";
+        ctx.fillStyle = colorHex;
         ctx.fillRect(x - 2, y - 2, 5, 5);
         
         if (last) {
+          ctx.strokeStyle = colorHex;
+          ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.moveTo(last.x, last.y);
           ctx.lineTo(x, y);
           ctx.stroke();
-          lines.push([last.x, last.y, x, y]);
+          lines.push([last.x, last.y, x, y, currentColor]);
         }
         last = {x, y};
       });
@@ -291,17 +417,70 @@
         last = null;
       };
       
+      document.getElementById("undo").onclick = () => {
+        if (lines.length === 0) {
+          // No lines to undo, but we might have a single point
+          if (last) {
+            // Remove the last point by clearing and redrawing
+            last = null;
+            redrawCanvas();
+            output.value = "";
+          }
+          return;
+        }
+        
+        // Remove the last line
+        const removedLine = lines.pop();
+        const [x1, y1, x2, y2, color] = removedLine;
+        
+        // Update last to be the starting point of the removed line
+        // This allows continuing from where we were before the undo
+        last = {x: x1, y: y1};
+        
+        // Redraw the canvas without the removed line
+        redrawCanvas();
+        
+        // Clear export output since it's now outdated
+        output.value = "";
+      };
+      
       document.getElementById("export").onclick = () => {
         const startLine = parseInt(document.getElementById("linestart").value) || 10;
+        const dialect = dialectSelect.value;
         let text = "";
+        let lineNum = startLine;
         
-        for (let i = 0; i < lines.length; i++) {
-          const [x1, y1, x2, y2] = lines[i];
-          text += formatLine(x1, y1, x2, y2, startLine + (i*10)) + "\n";
+        // Apple II needs special handling - HCOLOR= and HPLOT are separate lines
+        if (dialect === "apple2") {
+          let lastAppleColor = null;
+          for (let i = 0; i < lines.length; i++) {
+            const [x1, y1, x2, y2, color] = lines[i];
+            const appleColor = mapEgaToApple2Color(color);
+            // Only output HCOLOR= when color changes
+            if (appleColor !== lastAppleColor) {
+              text += `${lineNum} HCOLOR=${appleColor}\n`;
+              lineNum += 10;
+              lastAppleColor = appleColor;
+            }
+            text += `${lineNum} HPLOT ${x1},${y1} TO ${x2},${y2}\n`;
+            lineNum += 10;
+          }
+        } else {
+          for (let i = 0; i < lines.length; i++) {
+            const [x1, y1, x2, y2, color] = lines[i];
+            text += formatLine(x1, y1, x2, y2, color, lineNum) + "\n";
+            lineNum += 10;
+          }
         }
         
         output.value = text || "No lines drawn yet. Click on the canvas to start drawing!";
       };
+      
+      // Redraw canvas when color changes (for visual feedback)
+      colorSelect.addEventListener("change", () => {
+        // Visual feedback: the next line will use the new color
+        // Existing lines keep their colors
+      });
       
       document.getElementById("clear").onclick = reset;
       
