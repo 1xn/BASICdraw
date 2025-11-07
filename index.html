@@ -108,13 +108,13 @@
       <div class="control-group">
         <label>BASIC Dialect:</label>
         <select id="dialect">
-          <option value="generic" selected>Generic BASIC</option>
+          <option value="gwbasic" selected>GW-BASIC / QBasic / QuickBASIC</option>
           <option value="atari">Atari ST BASIC</option>
-          <option value="gwbasic">GW-BASIC / QBasic / QuickBASIC</option>
           <option value="sharp">Sharp MZ-700/800 BASIC</option>
           <option value="msx">MSX BASIC</option>
           <option value="c128">Commodore 128 BASIC 7.0</option>
           <option value="apple2">Apple II HPLOT</option>
+          <option value="generic">Generic BASIC</option>
         </select>
       </div>
       
@@ -277,7 +277,7 @@
       
       let last = null;
       let lines = []; // Each line: [x1, y1, x2, y2, color]
-      let currentRes = {w: 640, h: 480};
+      let currentRes = {w: 640, h: 480}; // Default matches GW-BASIC VGA resolution
       
       function getCurrentColor() {
         return parseInt(colorSelect.value) || 15;
