@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BASICdraw - Vintage BASIC Line Map Drawer</title>
+    <style>
+      body {
+        background:#111;
+        color:#ddd;
+        font-family:'Courier New',monospace;
+        text-align:center;
+        padding:10px;
+        margin:0;
+      }
+      h2 {
+        margin:15px 0;
+        color:#0f0;
+        text-shadow:0 0 10px #0f0;
+      }
+      canvas {
+        background:black;
+        border:2px solid #555;
+        display:block;
+        margin:15px auto;
+        box-shadow:0 0 20px rgba(0,255,0,0.2);
+      }
+      button {
+        margin:5px;
+        padding:8px 16px;
+        background:#222;
+        color:#0f0;
+        border:2px solid #0f0;
+        cursor:pointer;
+        font-family:'Courier New',monospace;
+        font-weight:bold;
+        transition:all 0.2s;
+      }
+      button:hover {
+        background:#0f0;
+        color:#000;
+      }
+      select {
+        margin:5px;
+        padding:6px 10px;
+        background:#222;
+        color:#ddd;
+        border:1px solid #555;
+        font-family:'Courier New',monospace;
+        font-size:13px;
+      }
+      .controls {
+        margin:15px auto;
+        max-width:900px;
+        background:#1a1a1a;
+        padding:15px;
+        border:1px solid #333;
+        border-radius:5px;
+      }
+      .control-group {
+        display:inline-block;
+        margin:8px 20px;
+        text-align:left;
+      }
+      .control-group label {
+        display:block;
+        margin-bottom:5px;
+        color:#888;
+        font-size:11px;
+        text-transform:uppercase;
+        letter-spacing:1px;
+      }
+      #output {
+        width:100%;
+        max-width:900px;
+        height:200px;
+        margin:0;
+        display:block;
+        background:#000;
+        color:#0f0;
+        border:2px solid #0f0;
+        font-family:'Courier New',monospace;
+        padding:10px;
+        box-sizing:border-box;
+        font-size:13px;
+        line-height:1.4;
+      }
+      .info {
+        margin:10px auto;
+        max-width:900px;
+        font-size:12px;
+        color:#666;
+        font-style:italic;
+      }
+      .button-group {
+        margin:15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>BASICdraw</h2>
+    
+    <div class="info" style="margin-bottom:15px;color:#888;max-width:700px;margin-left:auto;margin-right:auto;">
+      Back in the day, programmers plotted graphics on graph paper before typing coordinates into BASIC. 
+      This tool lets you draw directly and export authentic LINE commands for vintage BASIC dialects!
+    </div>
+    
+    <div class="controls">
+      <div class="control-group">
+        <label>BASIC Dialect:</label>
+        <select id="dialect">
+          <option value="generic" selected>Generic BASIC</option>
+          <option value="atari">Atari ST BASIC</option>
+          <option value="gwbasic">GW-BASIC / QBasic / QuickBASIC</option>
+          <option value="sharp">Sharp MZ-700/800 BASIC</option>
+          <option value="msx">MSX BASIC</option>
+          <option value="c128">Commodore 128 BASIC 7.0</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Resolution:</label>
+        <select id="resolution">
+          <option value="256x192">256×192 (MSX)</option>
+          <option value="320x200">320×200 (CGA/C64/Atari)</option>
+          <option value="640x350">640×350 (EGA)</option>
+          <option value="640x400">640×400 (Atari ST)</option>
+          <option value="640x480" selected>640×480 (VGA)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Line starts at:</label>
+        <input type="number" id="linestart" value="10" min="1" step="10" style="width:80px;padding:6px;background:#222;color:#ddd;border:1px solid #555;font-family:'Courier New',monospace;">
+      </div>
+    </div>
+    
+    <canvas id="map"></canvas>
+    
+    <div class="button-group">
+      <button id="newseg">⊙ New Segment</button>
+      <button id="export">⇓ Export BASIC Code</button>
+      <button id="clear">✕ Clear Canvas</button>
+    </div>
+    
+    <div class="info">
+      Click on canvas to draw points. Lines connect consecutive points. Use "New Segment" to start disconnected line.
+    </div>
+    
+    <div style="position:relative;max-width:900px;margin:15px auto;">
+      <textarea id="output" readonly placeholder="Your BASIC LINE commands will appear here..."></textarea>
+      <button id="copy" style="position:absolute;top:10px;right:10px;padding:5px 10px;font-size:11px;">📋 Copy</button>
+    </div>
+    
+    <div style="margin-top:20px;padding:15px;font-size:11px;color:#555;border-top:1px solid #222;">
+      Made by <a href="https://1xn.org" target="_blank" style="color:#0f0;text-decoration:none;">1XN.org</a> | 
+      <a href="https://github.com/1xn" target="_blank" style="color:#0f0;text-decoration:none;">GitHub: 1xn</a>
+    </div>
+    
+    <script>
+      const canvas = document.getElementById("map");
+      const ctx = canvas.getContext("2d");
+      const output = document.getElementById("output");
+      const resSelect = document.getElementById("resolution");
+      const dialectSelect = document.getElementById("dialect");
+      
+      // Dialect configurations
+      const dialects = {
+        generic: {
+          name: "Generic BASIC",
+          format: (x1, y1, x2, y2) => `LINE ${x1},${y1} TO ${x2},${y2}`,
+          resolutions: ["256x192", "320x200", "640x350", "640x400", "640x480"]
+        },
+        atari: {
+          name: "Atari ST BASIC",
+          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          resolutions: ["320x200", "640x400"]
+        },
+        gwbasic: {
+          name: "GW-BASIC / QBasic / QuickBASIC",
+          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          resolutions: ["320x200", "640x350", "640x480"]
+        },
+        sharp: {
+          name: "Sharp MZ-700/800 BASIC",
+          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          resolutions: ["320x200"]
+        },
+        msx: {
+          name: "MSX BASIC",
+          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          resolutions: ["256x192"]
+        },
+        c128: {
+          name: "Commodore 128 BASIC 7.0",
+          format: (x1, y1, x2, y2) => `LINE (${x1},${y1})-(${x2},${y2})`,
+          resolutions: ["320x200"]
+        }
+      };
+      
+      let last = null;
+      let lines = [];
+      let currentRes = {w: 640, h: 480};
+      
+      function parseResolution(resStr) {
+        const [w, h] = resStr.split('x').map(Number);
+        return {w, h};
+      }
+      
+      function setResolution() {
+        const res = resSelect.value;
+        currentRes = parseResolution(res);
+        canvas.width = currentRes.w;
+        canvas.height = currentRes.h;
+        reset();
+      }
+      
+      function grid() {
+        const gridX = currentRes.w / 8;
+        const gridY = currentRes.h / 8;
+        
+        ctx.strokeStyle = "#003366";
+        ctx.lineWidth = 1;
+        
+        for (let x = 0; x <= currentRes.w; x += gridX) {
+          ctx.beginPath(); 
+          ctx.moveTo(x, 0); 
+          ctx.lineTo(x, currentRes.h); 
+          ctx.stroke();
+        }
+        for (let y = 0; y <= currentRes.h; y += gridY) {
+          ctx.beginPath(); 
+          ctx.moveTo(0, y); 
+          ctx.lineTo(currentRes.w, y); 
+          ctx.stroke();
+        }
+        
+        ctx.strokeStyle = "#00ff00";
+        ctx.lineWidth = 2;
+      }
+      
+      function reset() {
+        ctx.clearRect(0, 0, currentRes.w, currentRes.h);
+        grid();
+        lines = [];
+        last = null;
+        output.value = "";
+      }
+      
+      function formatLine(x1, y1, x2, y2, lineNum) {
+        const dialect = dialectSelect.value;
+        const formatted = dialects[dialect].format(x1, y1, x2, y2);
+        return `${lineNum} ${formatted}`;
+      }
+      
+      function updateResolutionOptions() {
+        const dialect = dialectSelect.value;
+        const validRes = dialects[dialect].resolutions;
+        const currentValue = resSelect.value;
+        
+        // Check if current resolution is valid for selected dialect
+        if (!validRes.includes(currentValue)) {
+          // Switch to first valid resolution for this dialect
+          resSelect.value = validRes[0];
+          setResolution();
+        }
+      }
+      
+      grid();
+      
+      canvas.addEventListener("click", e => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = currentRes.w / rect.width;
+        const scaleY = currentRes.h / rect.height;
+        const x = Math.floor((e.clientX - rect.left) * scaleX);
+        const y = Math.floor((e.clientY - rect.top) * scaleY);
+        
+        ctx.fillStyle = "#00ff00";
+        ctx.fillRect(x - 2, y - 2, 5, 5);
+        
+        if (last) {
+          ctx.beginPath();
+          ctx.moveTo(last.x, last.y);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+          lines.push([last.x, last.y, x, y]);
+        }
+        last = {x, y};
+      });
+      
+      document.getElementById("newseg").onclick = () => { 
+        last = null;
+      };
+      
+      document.getElementById("export").onclick = () => {
+        const startLine = parseInt(document.getElementById("linestart").value) || 10;
+        let text = "";
+        
+        for (let i = 0; i < lines.length; i++) {
+          const [x1, y1, x2, y2] = lines[i];
+          text += formatLine(x1, y1, x2, y2, startLine + (i*10)) + "\n";
+        }
+        
+        output.value = text || "No lines drawn yet. Click on the canvas to start drawing!";
+      };
+      
+      document.getElementById("clear").onclick = reset;
+      
+      document.getElementById("copy").onclick = () => {
+        const textarea = document.getElementById("output");
+        const text = textarea.value;
+        if (!text || text === "No lines drawn yet. Click on the canvas to start drawing!" || text === "" || text === "Your BASIC LINE commands will appear here...") {
+          return;
+        }
+        
+        // Select the textarea content and copy
+        textarea.select();
+        textarea.setSelectionRange(0, 99999); // For mobile devices
+        
+        try {
+          document.execCommand('copy');
+          const btn = document.getElementById("copy");
+          const original = btn.textContent;
+          btn.textContent = "✓ Copied!";
+          btn.style.background = "#0f0";
+          btn.style.color = "#000";
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.style.background = "#222";
+            btn.style.color = "#0f0";
+          }, 1500);
+        } catch (err) {
+          // Fallback to clipboard API
+          navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById("copy");
+            const original = btn.textContent;
+            btn.textContent = "✓ Copied!";
+            btn.style.background = "#0f0";
+            btn.style.color = "#000";
+            setTimeout(() => {
+              btn.textContent = original;
+              btn.style.background = "#222";
+              btn.style.color = "#0f0";
+            }, 1500);
+          });
+        }
+      };
+      
+      resSelect.addEventListener("change", setResolution);
+      dialectSelect.addEventListener("change", updateResolutionOptions);
+    </script>
+  </body>
+</html>
